@@ -41,15 +41,11 @@ cmd:option('-visualize',          0,                      'visualizing results')
 
 opt = cmd:parse(arg or {})
 opt.save = paths.concat('./Results', opt.save)
---os.execute('mkdir -p ' .. opt.preProcDir)
 torch.setnumthreads(opt.threads)
 torch.setdefaulttensortype('torch.FloatTensor')
 
 ----------------------------------------------------------------------
--- Model + Loss:
 local model
-
-
 model=torch.load('inception.t7')
 model:remove(24)
 model:add(nn.Linear(1024,8))
