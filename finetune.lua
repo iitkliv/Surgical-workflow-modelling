@@ -5,7 +5,7 @@ require 'pl'
 require 'trepl'
 require 'nn'
 require 'cudnn'
---require 'hdf5'
+require 'hdf5'
 require 'gnuplot'
 require 'cunn'
 ----------------------------------------------------------------------
@@ -64,7 +64,7 @@ end
 print('loading training data...')
 if opt.mode == '1' then
 
-		local trainDatafile = hdf5.open('v3data/traindata/tooltrainData.h5','r')
+		local trainDatafile = hdf5.open('traindata/tooltrainData.h5','r')
 		local TrainData1 = trainDatafile:read('/data',trainData):all()
 		trainDatafile:close()
 		TrainData1 = TrainData1:transpose(1,4):transpose(2,3)
@@ -73,7 +73,7 @@ if opt.mode == '1' then
 		TrainData1 = nil
 		print('training data loaded..')
 		print('loading train label ...')
-		local trainLabelfile = hdf5.open('v3data/trainlabel/tooltrainLabel.h5','r') 
+		local trainLabelfile = hdf5.open('trainlabel/tooltrainLabel.h5','r') 
 		local TrainLabel1 = trainLabelfile:read('/label',trainLabel):all()
 		trainLabelfile:close()
 		TrainLabel1 = TrainLabel1:transpose(1,2)
@@ -84,13 +84,13 @@ if opt.mode == '1' then
 		-------------Loading validation data-----------------------------------
 
 		print('Loading validation data...')
-		local valDatafile = hdf5.open('v3data/valdata/toolvalData.h5','r')
+		local valDatafile = hdf5.open('valdata/toolvalData.h5','r')
 		local TestData = valDatafile:read('/data',valData):all()
 		valDatafile:close()
 		TestData = TestData:transpose(1,4):transpose(2,3)
 		print('validation data loaded!')
 		print('loading validation label ...')
-		local valLabelfile = hdf5.open('v3data/vallabel/toolvalLabel.h5','r')
+		local valLabelfile = hdf5.open('vallabel/toolvalLabel.h5','r')
 		local TestLabel = valLabelfile:read('/label',valLabel):all()
 		valLabelfile:close()
 		TestLabel = TestLabel:transpose(1,2)
