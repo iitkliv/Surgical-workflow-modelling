@@ -5,23 +5,24 @@ require 'pl'
 require 'trepl'
 require 'nn'
 require 'cudnn'
-require 'hdf5'
+--require 'hdf5'
 require 'gnuplot'
 require 'cunn'
 ----------------------------------------------------------------------
 local cmd = torch.CmdLine()
 cmd:addTime()
 cmd:text()
-cmd:text('Finetuning a convolutional network for tool detection')
+cmd:text('Finetuning a convolutional network for tool detection or surgical phase detection')
 cmd:text()
 cmd:text('==>Options')
 
 cmd:text('===>Training Parameters')
+cmd:option('-mode',                '1',                  'mode=1 for tool detection mode =2 for phase detection')
 cmd:option('-LR',                 0.001,                    'learning rate')
 cmd:option('-LRDecay',            0,                      'learning rate decay (in # samples)')
 cmd:option('-weightDecay',        1e-4,                   'L2 penalty on the weights')
 cmd:option('-momentum',           0.9,                    'momentum')
-cmd:option('-batchSize',          64,                    'batch size')
+cmd:option('-batchSize',          8,                    'batch size')
 cmd:option('-optimization',       'sgd',                  'optimization method')
 cmd:option('-epoch',              100,                     'number of epochs to train, -1 for unbounded')
 
@@ -40,59 +41,112 @@ cmd:option('-visualize',          0,                      'visualizing results')
 
 opt = cmd:parse(arg or {})
 opt.save = paths.concat('./Results', opt.save)
-os.execute('mkdir -p ' .. opt.preProcDir)
+--os.execute('mkdir -p ' .. opt.preProcDir)
 torch.setnumthreads(opt.threads)
 torch.setdefaulttensortype('torch.FloatTensor')
 
 ----------------------------------------------------------------------
 -- Model + Loss:
 local model
-if paths.filep(opt.load) then
-  pcall(require , 'cunn')
-  pcall(require , 'cudnn')
-end
+
 
 model=torch.load('inception.t7')
+model:remove(24)
+model:add(nn.Linear(1024,8))
+model:add(nn.LogSigmoid())
 
-local loss = nn.MultiLabelSoftMarginCriterion()
+if opt.mode == '1' then
+	loss = nn.MultiLabelSoftMarginCriterion()
+elseif opt.mode == '2' then
+	loss = nn.ClassNLLCriterion()
+end
 ---------------------------Loading training data------------------------
 print('loading training data...')
+if opt.mode == '1' then
 
-local trainDatafile = hdf5.open('v3data/traindata/tooltrainData.h5','r')
-local TrainData1 = trainDatafile:read('/data',trainData):all()
-trainDatafile:close()
-TrainData1 = TrainData1:transpose(1,4):transpose(2,3)
-shuffleIdx = torch.randperm(TrainData1:size(1))
-TrainData = TrainData1[{{shuffleIdx},{},{},{}}]
-TrainData1 = nil
-print('training data loaded..')
-print('loading train label ...')
-local trainLabelfile = hdf5.open('v3data/trainlabel/tooltrainLabel.h5','r') 
-local TrainLabel1 = trainLabelfile:read('/label',trainLabel):all()
-trainLabelfile:close()
-TrainLabel1 = TrainLabel1:transpose(1,2)
-TrainLabel = TrainLabel1[{{shuffleIdx},{}}]
-TrainLabel1 = nil
-collectgarbage()
-print('Training label loaded!')
--------------Loading validation data-----------------------------------
+		local trainDatafile = hdf5.open('v3data/traindata/tooltrainData.h5','r')
+		local TrainData1 = trainDatafile:read('/data',trainData):all()
+		trainDatafile:close()
+		TrainData1 = TrainData1:transpose(1,4):transpose(2,3)
+		shuffleIdx = torch.randperm(TrainData1:size(1))
+		TrainData = TrainData1[{{shuffleIdx},{},{},{}}]
+		TrainData1 = nil
+		print('training data loaded..')
+		print('loading train label ...')
+		local trainLabelfile = hdf5.open('v3data/trainlabel/tooltrainLabel.h5','r') 
+		local TrainLabel1 = trainLabelfile:read('/label',trainLabel):all()
+		trainLabelfile:close()
+		TrainLabel1 = TrainLabel1:transpose(1,2)
+		TrainLabel = TrainLabel1[{{shuffleIdx},{}}]
+		TrainLabel1 = nil
+		collectgarbage()
+		print('Training label loaded!')
+		-------------Loading validation data-----------------------------------
 
-print('Loading validation data...')
-local valDatafile = hdf5.open('v3data/valdata/toolvalData.h5','r')
-local TestData = valDatafile:read('/data',valData):all()
-valDatafile:close()
-TestData = TestData:transpose(1,4):transpose(2,3)
-print('validation data loaded!')
-print('loading validation label ...')
-local valLabelfile = hdf5.open('v3data/vallabel/toolvalLabel.h5','r')
-local TestLabel = valLabelfile:read('/label',valLabel):all()
-valLabelfile:close()
-TestLabel = TestLabel:transpose(1,2)
-print('validation label loaded!')
-collectgarbage()
+		print('Loading validation data...')
+		local valDatafile = hdf5.open('v3data/valdata/toolvalData.h5','r')
+		local TestData = valDatafile:read('/data',valData):all()
+		valDatafile:close()
+		TestData = TestData:transpose(1,4):transpose(2,3)
+		print('validation data loaded!')
+		print('loading validation label ...')
+		local valLabelfile = hdf5.open('v3data/vallabel/toolvalLabel.h5','r')
+		local TestLabel = valLabelfile:read('/label',valLabel):all()
+		valLabelfile:close()
+		TestLabel = TestLabel:transpose(1,2)
+		print('validation label loaded!')
+		collectgarbage()
+		classes = {'no_tool','tool1','tool2','tool3','tool4','tool5','tool6','tool7'}
+
+elseif opt.mode == '2' then
+
+		local trainDatafile = hdf5.open('phasetrainData/phasetrainData.h5','r')
+		local TrainData1 = trainDatafile:read('/data',trainDataall):all()
+		trainDatafile:close()
+		TrainData1 = TrainData1:transpose(1,4):transpose(2,3)
+		shuffleIdx = torch.randperm(TrainData1:size(1))
+		TrainData = TrainData1[{{shuffleIdx},{},{},{}}]
+		TrainData1 = nil
+		print('training data loaded..')
+		print('loading train label ...')
+		local trainLabelfile = hdf5.open('phasetrainLabel/phasetrainLabel.h5','r') 
+		local TrainLabel1 = trainLabelfile:read('/label',trainLabelall):all()
+		trainLabelfile:close()
+		TrainLabel1 = TrainLabel1:transpose(1,2)
+		local TrainLabel2 = TrainLabel1[{{shuffleIdx},{}}]
+		TrainLabel1 = nil
+		TrainLabel = torch.ByteTensor(TrainLabel2:size(1))
+		for i =1,TrainLabel2:size(1) do
+		  TrainLabel[i] = TrainLabel2[{{i},{1}}]
+		end
+		TrainLabel2 = nil
+		collectgarbage()
+		print('Training label loaded!')
+
+		print('Loading validation data...')
+		local valDatafile = hdf5.open('phasevalData/phasevalDatav2.h5','r')
+		local TestData = valDatafile:read('/data',valData):all()
+		valDatafile:close()
+		TestData = TestData:transpose(1,4):transpose(2,3)
+		print('validation data loaded!')
+		print('loading validation label ...')
+		local valLabelfile = hdf5.open('phasevalLabel/phasevalLabelv2.h5','r')
+		local TestLabel1 = valLabelfile:read('/label',valLabel):all()
+		valLabelfile:close()
+		TestLabel1 = TestLabel1:transpose(1,2)
+		TestLabel = torch.ByteTensor(TestLabel1:size(1))
+		for i =1,TestLabel1:size(1) do
+		  TestLabel[i] = TestLabel1[{{i},{1}}]
+		end
+		TestLabel1 = nil
+		print('validation label loaded!')
+		collectgarbage()
+		classes = {'P1','P2','P3','P4','P5','P6','P7','P8'}
+
+end
 
 
-classes = {'no_tool','tool1','tool2','tool3','tool4','tool5','tool6','tool7'}
+
 ----------------------------------------------------------------------
 
 local confusion = optim.ConfusionMatrix(8,classes)
@@ -168,7 +222,11 @@ local function Forward(Data,Label,train)
   local lossVal = 0
   local num = 1;
   for NumBatches=1,SizeBatch do
-    yt = Label[{{num,num+opt.batchSize-1}}]:cuda()
+  	if opt.mode == '1' then 
+    	yt = Label[{{num,num+opt.batchSize-1},{}}]:cuda()
+    elseif opt.mode == '2' then
+    	yt = Label[{{num,num+opt.batchSize-1}}]:cuda()
+    end
     x = torch.div(Data[{{num,num+opt.batchSize-1},{},{},{}}]:float(),255):cuda()      
     local y, currLoss
     y = model:forward(x)   
@@ -203,7 +261,11 @@ local function Forward(Data,Label,train)
     num = num + opt.batchSize
   end
   if(Data:size(1)%opt.batchSize ~= 0) then
-    yt = Label[{{num,Data:size(1)}}]:cuda()
+    if opt.mode == '1' then 
+    	yt = Label[{{num,num+opt.batchSize-1},{}}]:cuda()
+    elseif opt.mode == '2' then
+    	yt = Label[{{num,num+opt.batchSize-1}}]:cuda()
+    end
     x = torch.div(Data[{{num,Data:size(1)},{},{},{}}]:float(),255):cuda()    
     y = model:forward(x)
       currLoss = loss:forward(y,yt)
